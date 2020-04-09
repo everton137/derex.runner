@@ -19,6 +19,7 @@ _settings_modules = [
     "django",
     "mysql",
     "mongo",
+    "elasticsearch",
     "caches",
     "logging",
     "staticfiles",
