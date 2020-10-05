@@ -1,0 +1,11 @@
+transifex-client
+ipdb
+ipython
+pdbpp
+numpy
+scons
+whitenoise[brotli]<5
+flower
+gevent<2.9.0
+packaging
+gunicorn==19.10.0

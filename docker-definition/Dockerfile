@@ -88,6 +88,7 @@ RUN --mount=type=cache,target=/var/cache/apk apk add \
     sed '/st_mysql_options options;/a unsigned int reconnect;' /usr/include/mysql/mysql.h -i
 
 COPY --from=sourceonly /openedx/edx-platform/requirements/edx/base.txt /tmp/base.txt
+COPY derex_packages.txt /tmp/derex_packages.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     cat /tmp/base.txt | grep -v github | grep -v ^-e > /tmp/derex.txt && \
     export PIP_FIND_LINKS="https://wheels.derex.page/alpine-$(cat /etc/alpine-release)" && \
@@ -100,7 +101,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip wheel --wheel-dir=/wheelhouse gevent "whitenoise[brotli]<5"
 
 FROM wheels as rmlint
-RUN pip install scons && \
+RUN pip install scons -c /tmp/derex_packages.txt && \
     apk add \
     glib-dev \
     json-glib
@@ -116,12 +117,12 @@ COPY --from=rmlint /usr/local/bin/rmlint /usr/local/bin/rmlint
 
 # TODO: extract these package list and put it in a file external to the Dockerfile
 RUN --mount=type=cache,target=/root/.cache/pip --mount=type=bind,source=/wheelhouse,from=wheels,target=/wheelhouse \
-    pip install "whitenoise[brotli]<5" flower gevent packaging --find-links /wheelhouse -c /openedx/edx-platform/requirements/edx/development.txt
+    pip install whitenoise[brotli] flower gevent packaging --find-links /wheelhouse -c /openedx/edx-platform/requirements/edx/development.txt -c /tmp/derex_packages.txt
 RUN --mount=type=cache,target=/root/.cache/pip --mount=type=bind,source=/wheelhouse,from=wheels,target=/wheelhouse \
     pip install --find-links /wheelhouse -r /openedx/edx-platform/requirements/edx/base.txt && \
     `# We install a newer version of gunicorn to take advantage of the --max-requests-jitter option` \
     `# It s not very clear why it was pinned in the first place` \
-    pip install gunicorn==19.10.0
+    pip install gunicorn -c /tmp/derex_packages.txt
 
 COPY whitenoise_edx.py assets.py translations.sh cleanup_assets.sh compile_assets.sh /usr/local/bin/
 
@@ -135,7 +136,7 @@ FROM notranslations as translations
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=secret,id=transifex,dst=/root/.transifexrc-orig \
-    pip install transifex-client -c /openedx/edx-platform/requirements/edx/development.txt && \
+    pip install transifex-client -c /openedx/edx-platform/requirements/edx/development.txt -c /tmp/derex_packages.txt && \
     /usr/local/bin/translations.sh
 
 FROM notranslations as nostatic
@@ -163,7 +164,7 @@ RUN --mount=type=cache,target=/root/.npm \
     apk add g++ make coreutils vim mariadb-client && \
     wget ${NODE_URL} -O - | tar --directory / -xJf - && ln -s /node-*/bin/* /usr/local/bin/ && \
     npm install --unsafe-perm && \
-    pip install pdbpp ipython ipdb
+    pip install pdbpp ipython ipdb -c /tmp/derex_packages.txt
 
 FROM nostatic-dev as dev-nodump
 RUN /usr/local/bin/compile_assets.sh && \
